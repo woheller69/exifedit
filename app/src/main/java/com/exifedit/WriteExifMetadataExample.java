@@ -1,4 +1,4 @@
-package com.seemless;
+package com.exifedit;
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more

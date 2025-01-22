@@ -1,4 +1,4 @@
-package com.seemless;
+package com.exifedit;
 
 import static android.os.Environment.DIRECTORY_PICTURES;
 
@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.documentfile.provider.DocumentFile;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -66,8 +67,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        outputFile = new File(Environment.getExternalStoragePublicDirectory(DIRECTORY_PICTURES).getPath()+"/exifEdit/" + "temp"+ System.currentTimeMillis() +".jpg");
-
         filePicker.setOnClickListener(view -> openFilePicker());
 
     }
@@ -87,6 +86,12 @@ public class MainActivity extends AppCompatActivity {
                             Uri selectedFileUri = data.getData();
                             if (selectedFileUri != null) {
                                 File tempFile = createTempFileFromUri(selectedFileUri);
+
+                                //Hack to get original file date and name
+                                DocumentFile documentFile = DocumentFile.fromSingleUri(mContext, selectedFileUri);
+                                long originalDate = documentFile.lastModified();
+                                String fileName = documentFile.getName();
+
                                 if (tempFile != null) {
                                     WriteExifMetadataExample example = new WriteExifMetadataExample();
 
@@ -121,9 +126,10 @@ public class MainActivity extends AppCompatActivity {
                                             exifDirectory.add(ExifTagConstants.EXIF_TAG_DATE_TIME_ORIGINAL, formattedDate);
 
                                             //Save modified file
+                                            outputFile = new File(Environment.getExternalStoragePublicDirectory(DIRECTORY_PICTURES).getPath() + "/exifEdit/" + fileName);
                                             OutputStream os = new BufferedOutputStream(new FileOutputStream(outputFile.getAbsolutePath()));
                                             new ExifRewriter().updateExifMetadataLossy(tempFile, os, outputSet);  //Lossless makes exif grow and my crash app
-
+                                            outputFile.setLastModified(originalDate);
                                         }
 
                                     } catch (IOException e) {
@@ -214,4 +220,5 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         if (tempFile!=null) tempFile.delete();
     }
+
 }
