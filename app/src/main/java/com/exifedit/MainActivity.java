@@ -8,22 +8,27 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.documentfile.provider.DocumentFile;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
+import org.apache.commons.imaging.Imaging;
+import org.apache.commons.imaging.ImagingException;
+import org.apache.commons.imaging.common.ImageMetadata;
+import org.apache.commons.imaging.formats.jpeg.JpegImageMetadata;
 import org.apache.commons.imaging.formats.jpeg.exif.ExifRewriter;
 import org.apache.commons.imaging.formats.tiff.TiffField;
 import org.apache.commons.imaging.formats.tiff.TiffImageMetadata;
@@ -32,14 +37,16 @@ import org.apache.commons.imaging.formats.tiff.write.TiffOutputDirectory;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet;
 
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -49,7 +56,13 @@ public class MainActivity extends AppCompatActivity {
     private Context mContext = this;
     private ActivityResultLauncher<Intent> filePickerResultLauncher;
     private FloatingActionButton filePicker;
+    private FloatingActionButton fileSave;
+    private FloatingActionButton exifDelete;
+    private FloatingActionButton exifDate;
     private File outputFile;
+    private long originalTime;
+    private String originalName;
+    TiffOutputSet outputSet;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -57,6 +70,10 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         tvResult = findViewById(R.id.tvResult);
         filePicker = findViewById(R.id.filePicker);
+        fileSave = findViewById(R.id.fileSave);
+        exifDelete = findViewById(R.id.fileDelete);
+        exifDate = findViewById(R.id.fileModDate);
+
         checkPermission();
         registerFilePickerResultLauncher();
 
@@ -68,7 +85,127 @@ public class MainActivity extends AppCompatActivity {
         }
 
         filePicker.setOnClickListener(view -> openFilePicker());
+        fileSave.setOnClickListener(view -> saveFile());
+        exifDelete.setOnClickListener(view -> deleteExifData());
+        exifDate.setOnClickListener(view -> modifyExifData());
 
+    }
+
+    private void modifyExifData() {
+        if (tempFile == null || outputSet == null) return;
+        //Modify DATE_TIME_ORIGINAL
+        final TiffOutputDirectory exifDirectory;
+        try {
+            exifDirectory = outputSet.getOrCreateExifDirectory();
+
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Enter Date and Time");
+
+            // Set up the input field
+            final EditText input = new EditText(this);
+            input.setHint("YYYY:MM:SS HH:MM:SS");
+            builder.setView(input);
+
+            // Add the buttons
+            builder.setPositiveButton("OK", (dialog, which) -> {
+                String inputText = input.getText().toString();
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
+                try {
+                    String formattedDate = dateFormat.format(dateFormat.parse(inputText));
+
+                    // make sure to remove old value if present (this method will not fail if the tag does not exist).
+                    exifDirectory.removeField(ExifTagConstants.EXIF_TAG_DATE_TIME_ORIGINAL);
+                    exifDirectory.add(ExifTagConstants.EXIF_TAG_DATE_TIME_ORIGINAL, formattedDate);
+                    exifDirectory.removeField(ExifTagConstants.EXIF_TAG_DATE_TIME_DIGITIZED);
+                    exifDirectory.add(ExifTagConstants.EXIF_TAG_DATE_TIME_DIGITIZED, formattedDate);
+
+                    updateTempFile();
+                    displayExifData();
+
+                } catch (ParseException e) {
+                    Toast.makeText(MainActivity.this, "Invalid date format. Please use yyyy:MM:dd HH:mm:ss", Toast.LENGTH_LONG).show();
+                } catch (ImagingException ignored) {
+
+                }
+            });
+
+            builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+
+            AlertDialog dialog = builder.create();
+            dialog.show();
+
+        } catch (ImagingException e) {
+            Toast.makeText(this,"Error reading Exif data",Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void deleteExifData() {
+        if (tempFile == null) return;
+
+        try {
+            // Step 1: Read the existing tempFile into a byte array
+            byte[] fileData;
+            try (FileInputStream fis = new FileInputStream(tempFile)) {
+                fileData = fis.readAllBytes();
+            }
+
+            // Step 2: Modify the data in memory
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ExifRewriter exifRewriter = new ExifRewriter();
+            TiffOutputSet tiffOutputSet = new TiffOutputSet();
+            tiffOutputSet.getOrCreateExifDirectory();
+            exifRewriter.updateExifMetadataLossy(new ByteArrayInputStream(fileData), byteArrayOutputStream, tiffOutputSet);
+
+            // Step 3: Write the modified data back to the tempFile
+            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                fos.write(byteArrayOutputStream.toByteArray());
+            }
+
+            displayExifData();
+        } catch (IOException e) {
+            Toast.makeText(this,e.toString(),Toast.LENGTH_SHORT).show();
+            Log.d("ExifEdit",e.toString());
+        }
+    }
+
+    private void updateTempFile() {
+        if (tempFile == null || outputSet == null) return;
+
+        try {
+            // Step 1: Read the existing tempFile into a byte array
+            byte[] fileData;
+            try (FileInputStream fis = new FileInputStream(tempFile)) {
+                fileData = fis.readAllBytes();
+            }
+
+            // Step 2: Modify the data in memory
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ExifRewriter exifRewriter = new ExifRewriter();
+            exifRewriter.updateExifMetadataLossy(new ByteArrayInputStream(fileData), byteArrayOutputStream, outputSet);
+
+            // Step 3: Write the modified data back to the tempFile
+            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                fos.write(byteArrayOutputStream.toByteArray());
+            }
+
+        } catch (IOException e) {
+            Toast.makeText(this,"Error updating temp file",Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void saveFile() {
+        if (tempFile == null || outputSet == null) return;
+        outputFile = new File(Environment.getExternalStoragePublicDirectory(DIRECTORY_PICTURES).getPath() + "/exifEdit/" + originalName);
+
+        OutputStream os;
+        try {
+            os = new BufferedOutputStream(new FileOutputStream(outputFile.getAbsolutePath()));
+            new ExifRewriter().updateExifMetadataLossy(tempFile, os, outputSet);  //Lossless makes exif grow and my crash app
+            outputFile.setLastModified(originalTime);
+            Toast.makeText(this,"->" + outputFile.getAbsolutePath(),Toast.LENGTH_SHORT).show();
+        } catch (IOException e) {
+            Toast.makeText(this,"File in Pictures/ExifEdit exists. Delete it first!",Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
@@ -85,59 +222,12 @@ public class MainActivity extends AppCompatActivity {
                         if (data != null) {
                             Uri selectedFileUri = data.getData();
                             if (selectedFileUri != null) {
-                                File tempFile = createTempFileFromUri(selectedFileUri);
-
+                                createTempFileFromUri(selectedFileUri);
                                 //Hack to get original file date and name
                                 DocumentFile documentFile = DocumentFile.fromSingleUri(mContext, selectedFileUri);
-                                long originalDate = documentFile.lastModified();
-                                String fileName = documentFile.getName();
-
-                                if (tempFile != null) {
-                                    WriteExifMetadataExample example = new WriteExifMetadataExample();
-
-                                    TiffImageMetadata metadata = null;
-                                    try {
-                                        metadata = example.getExifMetadata(tempFile);
-                                        if (metadata != null){
-
-                                            //Display all fields
-                                            List<TiffField> fields = metadata.getAllFields();
-                                            String text = "";
-                                            for (int i = 0; i < fields.size(); i++){
-                                                TiffField field = fields.get(i);
-                                                text = text + field.getTagName() + " : " + field.getValue().toString() + "\n";
-                                            }
-                                            tvResult.setText(text);
-
-                                            //Modify DATE_TIME_ORIGINAL
-                                            TiffOutputSet outputSet = metadata.getOutputSet();
-                                            final TiffOutputDirectory exifDirectory = outputSet.getOrCreateExifDirectory();
-                                            // make sure to remove old value if present (this method will not fail if the tag does not exist).
-                                            exifDirectory.removeField(ExifTagConstants.EXIF_TAG_DATE_TIME_ORIGINAL);
-                                            // Create a Calendar instance and set the specific date and time
-                                            Calendar calendar = Calendar.getInstance();
-                                            calendar.set(2023, Calendar.JANUARY, 1, 12, 34, 56);
-
-                                            // Get the date and time from the Calendar
-                                            Date specificDate = calendar.getTime();
-                                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
-                                            String formattedDate = dateFormat.format(specificDate);
-
-                                            exifDirectory.add(ExifTagConstants.EXIF_TAG_DATE_TIME_ORIGINAL, formattedDate);
-
-                                            //Save modified file
-                                            outputFile = new File(Environment.getExternalStoragePublicDirectory(DIRECTORY_PICTURES).getPath() + "/exifEdit/" + fileName);
-                                            OutputStream os = new BufferedOutputStream(new FileOutputStream(outputFile.getAbsolutePath()));
-                                            new ExifRewriter().updateExifMetadataLossy(tempFile, os, outputSet);  //Lossless makes exif grow and my crash app
-                                            outputFile.setLastModified(originalDate);
-                                        }
-
-                                    } catch (IOException e) {
-                                        throw new RuntimeException(e);
-                                    }
-                                } else {
-                                    Toast.makeText(mContext, "Unable to create temporary file", Toast.LENGTH_SHORT).show();
-                                }
+                                originalTime = documentFile.lastModified();
+                                originalName = documentFile.getName();
+                                displayExifData();
 
                             }
                         }
@@ -145,13 +235,36 @@ public class MainActivity extends AppCompatActivity {
                 });
     }
 
+    private void displayExifData() {
+        if (tempFile != null) {
+
+            TiffImageMetadata metadata;
+            try {
+                metadata = getExifMetadata(tempFile);
+                if (metadata != null){
+
+                    //Display all fields
+                    List<TiffField> fields = metadata.getAllFields();
+                    String text = "";
+                    for (int i = 0; i < fields.size(); i++){
+                        TiffField field = fields.get(i);
+                        text = text + field.getTagName() + " : " + field.getValue().toString() + "\n";
+                    }
+                    tvResult.setText(text);
+                    outputSet = metadata.getOutputSet();
+                }
+
+            } catch (IOException e) {
+                Toast.makeText(this,"Error reading Exif data",Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(mContext, "Unable to create temporary file", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void checkPermission() {
         String manifestPermission;
-        if (Build.VERSION.SDK_INT <= 32){
-            manifestPermission = Manifest.permission.READ_EXTERNAL_STORAGE;
-        } else {
-            manifestPermission = Manifest.permission.READ_MEDIA_IMAGES;
-        }
+        manifestPermission = Manifest.permission.READ_MEDIA_IMAGES;
         int permission = ContextCompat.checkSelfPermission(this, manifestPermission);
         if (permission != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{manifestPermission}, 0);
@@ -177,13 +290,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    private File createTempFileFromUri(Uri uri) {
+    private void createTempFileFromUri(Uri uri) {
         InputStream inputStream = null;
         OutputStream outputStream = null;
         try {
             inputStream = getContentResolver().openInputStream(uri);
             if (inputStream == null) {
-                return null;
+                return;
             }
 
             tempFile = File.createTempFile("temp", ".jpg", getCacheDir());
@@ -212,7 +325,6 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
         }
-        return tempFile;
     }
 
     @Override
@@ -221,4 +333,19 @@ public class MainActivity extends AppCompatActivity {
         if (tempFile!=null) tempFile.delete();
     }
 
+    public TiffImageMetadata getExifMetadata(final File jpegImageFile) {
+
+        final ImageMetadata metadata;
+        try {
+            metadata = Imaging.getMetadata(jpegImageFile);
+            final JpegImageMetadata jpegMetadata = (JpegImageMetadata) metadata;
+            if (null != jpegMetadata) {
+                // note that exif might be null if no Exif metadata is found.
+                return jpegMetadata.getExif();
+            }
+        } catch (IOException e) {
+            Toast.makeText(this,"Error reading Exif data",Toast.LENGTH_SHORT).show();
+        }
+        return null;
+    }
 }
