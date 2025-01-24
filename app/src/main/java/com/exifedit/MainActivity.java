@@ -47,6 +47,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -102,7 +103,10 @@ public class MainActivity extends AppCompatActivity {
             builder.setTitle("Enter Date and Time");
 
             // Set up the input field
+            String inputHint = "";
+            inputHint = parseExifData(0x9003);
             final EditText input = new EditText(this);
+            input.setText(inputHint);
             input.setHint("YYYY:MM:SS HH:MM:SS");
             builder.setView(input);
 
@@ -111,9 +115,12 @@ public class MainActivity extends AppCompatActivity {
                 String inputText = input.getText().toString();
                 SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
                 try {
-                    String formattedDate = dateFormat.format(dateFormat.parse(inputText));
+                    Date date = dateFormat.parse(inputText);
+                    String formattedDate = dateFormat.format(date);
+                    originalTime = date.getTime();
 
                     // make sure to remove old value if present (this method will not fail if the tag does not exist).
+                    if (!parseExifData(0x132).equals("")) outputSet.removeField(0x132);
                     exifDirectory.removeField(ExifTagConstants.EXIF_TAG_DATE_TIME_ORIGINAL);
                     exifDirectory.add(ExifTagConstants.EXIF_TAG_DATE_TIME_ORIGINAL, formattedDate);
                     exifDirectory.removeField(ExifTagConstants.EXIF_TAG_DATE_TIME_DIGITIZED);
@@ -248,7 +255,7 @@ public class MainActivity extends AppCompatActivity {
                     String text = "";
                     for (int i = 0; i < fields.size(); i++){
                         TiffField field = fields.get(i);
-                        text = text + field.getTagName() + " : " + field.getValue().toString() + "\n";
+                        text = text + field.getTagName() + " : " + field.getValueDescription() + "\n";
                     }
                     tvResult.setText(text);
                     outputSet = metadata.getOutputSet();
@@ -260,6 +267,35 @@ public class MainActivity extends AppCompatActivity {
         } else {
             Toast.makeText(mContext, "Unable to create temporary file", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private String parseExifData(int key) {
+        if (tempFile != null) {
+
+            TiffImageMetadata metadata;
+            try {
+                metadata = getExifMetadata(tempFile);
+                if (metadata != null){
+
+                    //Display all fields
+                    List<TiffField> fields = metadata.getAllFields();
+                    String text = "";
+                    for (int i = 0; i < fields.size(); i++){
+                        TiffField field = fields.get(i);
+                        if (field.getTag() == key){
+                            return field.getValue().toString();
+                        }
+                    }
+
+                }
+
+            } catch (IOException e) {
+                Toast.makeText(this,"Error reading Exif data",Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(mContext, "Unable to create temporary file", Toast.LENGTH_SHORT).show();
+        }
+        return "";
     }
 
     private void checkPermission() {
