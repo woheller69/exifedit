@@ -255,7 +255,9 @@ public class MainActivity extends AppCompatActivity {
                     String text = "";
                     for (int i = 0; i < fields.size(); i++){
                         TiffField field = fields.get(i);
-                        text = text + field.getTagName() + " : " + field.getValueDescription() + "\n";
+                        String value = field.getValueDescription();
+                        if (value.contains("Invalid")) value = "Invalid";
+                        text = text + field.getTagName() + " : " + value + "\n";
                     }
                     tvResult.setText(text);
                     outputSet = metadata.getOutputSet();
