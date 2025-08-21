@@ -70,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        ThemeUtils.setStatusBarAppearance(this);
         tvResult = findViewById(R.id.tvResult);
         filePicker = findViewById(R.id.filePicker);
         fileSave = findViewById(R.id.fileSave);
@@ -100,47 +101,40 @@ public class MainActivity extends AppCompatActivity {
         if (tempFile == null) return;
 
         if (outputSet == null) outputSet = new TiffOutputSet();
-        final TiffOutputDirectory exifDirectory;
-        try {
-            exifDirectory = outputSet.getOrCreateExifDirectory();
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Enter Location");
 
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setTitle("Enter Location");
+        // Set up the input field
+        final EditText input = new EditText(this);
+        input.setHint("±dd.dd, ±dd.dd");
+        builder.setView(input);
 
-            // Set up the input field
-            final EditText input = new EditText(this);
-            input.setHint("±dd.dd, ±dd.dd");
-            builder.setView(input);
-
-            // Add the buttons
-            builder.setPositiveButton("OK", (dialog, which) -> {
-                String inputText = input.getText().toString();
-                String pattern = "^-?\\d+\\.\\d+, -?\\d+\\.\\d+$";
-                if (inputText.matches(pattern)){
-                    try {
-                        double latitude = Double.parseDouble(inputText.split(",")[0]);
-                        double longitude = Double.parseDouble(inputText.split(",")[1]);
-                        outputSet.setGpsInDegrees(longitude, latitude);
-                        updateTempFile();
-                        displayExifData();
-                    } catch (ImagingException e) {
-                        Toast.makeText(MainActivity.this, "Invalid GPS. Please use ±dd.dd, ±dd.dd", Toast.LENGTH_LONG).show();
-                        throw new RuntimeException(e);
-                    }
-                } else {
+        // Add the buttons
+        builder.setPositiveButton("OK", (dialog, which) -> {
+            String inputText = input.getText().toString();
+            String pattern = "^-?\\d+\\.\\d+, -?\\d+\\.\\d+$";
+            if (inputText.matches(pattern)){
+                try {
+                    double latitude = Double.parseDouble(inputText.split(",")[0]);
+                    double longitude = Double.parseDouble(inputText.split(",")[1]);
+                    outputSet.setGpsInDegrees(longitude, latitude);
+                    updateTempFile();
+                    displayExifData();
+                } catch (ImagingException e) {
                     Toast.makeText(MainActivity.this, "Invalid GPS. Please use ±dd.dd, ±dd.dd", Toast.LENGTH_LONG).show();
+                    throw new RuntimeException(e);
                 }
+            } else {
+                Toast.makeText(MainActivity.this, "Invalid GPS. Please use ±dd.dd, ±dd.dd", Toast.LENGTH_LONG).show();
+            }
 
-            });
+        });
 
-            builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
 
-            AlertDialog dialog = builder.create();
-            dialog.show();
+        AlertDialog dialog = builder.create();
+        dialog.show();
 
-        } catch (ImagingException e) {
-            Toast.makeText(this,"Error reading Exif data",Toast.LENGTH_SHORT).show();
-        }
     }
 
     private void modifyExifDate() {
