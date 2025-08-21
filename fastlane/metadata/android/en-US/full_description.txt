@@ -1,0 +1,1 @@
+<p><i>ExifEdit</i> is a simple Android EXIF Editor. At the moment it allows to change the modification date, edit the coordinates, and to delete all EXIF data.</p>

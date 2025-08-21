@@ -1,0 +1,1 @@
+Simple EXIF Editor for Android: Delete EXIF, Modify date
