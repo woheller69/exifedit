@@ -60,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     private FloatingActionButton fileSave;
     private FloatingActionButton exifDelete;
     private FloatingActionButton exifDate;
+    private FloatingActionButton exifLocation;
     private File outputFile;
     private long originalTime;
     private String originalName;
@@ -74,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
         fileSave = findViewById(R.id.fileSave);
         exifDelete = findViewById(R.id.fileDelete);
         exifDate = findViewById(R.id.fileModDate);
+        exifLocation = findViewById(R.id.fileModLocation);
 
         checkPermission();
         registerFilePickerResultLauncher();
@@ -88,11 +90,60 @@ public class MainActivity extends AppCompatActivity {
         filePicker.setOnClickListener(view -> openFilePicker());
         fileSave.setOnClickListener(view -> saveFile());
         exifDelete.setOnClickListener(view -> deleteExifData());
-        exifDate.setOnClickListener(view -> modifyExifData());
+        exifDate.setOnClickListener(view -> modifyExifDate());
+        exifLocation.setOnClickListener(view -> modifyExifLocation());
 
     }
 
-    private void modifyExifData() {
+
+    private void modifyExifLocation() {
+        if (tempFile == null) return;
+
+        if (outputSet == null) outputSet = new TiffOutputSet();
+        final TiffOutputDirectory exifDirectory;
+        try {
+            exifDirectory = outputSet.getOrCreateExifDirectory();
+
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Enter Location");
+
+            // Set up the input field
+            final EditText input = new EditText(this);
+            input.setHint("±dd.dd, ±dd.dd");
+            builder.setView(input);
+
+            // Add the buttons
+            builder.setPositiveButton("OK", (dialog, which) -> {
+                String inputText = input.getText().toString();
+                String pattern = "^-?\\d+\\.\\d+, -?\\d+\\.\\d+$";
+                if (inputText.matches(pattern)){
+                    try {
+                        double latitude = Double.parseDouble(inputText.split(",")[0]);
+                        double longitude = Double.parseDouble(inputText.split(",")[1]);
+                        outputSet.setGpsInDegrees(longitude, latitude);
+                        updateTempFile();
+                        displayExifData();
+                    } catch (ImagingException e) {
+                        Toast.makeText(MainActivity.this, "Invalid GPS. Please use ±dd.dd, ±dd.dd", Toast.LENGTH_LONG).show();
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    Toast.makeText(MainActivity.this, "Invalid GPS. Please use ±dd.dd, ±dd.dd", Toast.LENGTH_LONG).show();
+                }
+
+            });
+
+            builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+
+            AlertDialog dialog = builder.create();
+            dialog.show();
+
+        } catch (ImagingException e) {
+            Toast.makeText(this,"Error reading Exif data",Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void modifyExifDate() {
         if (tempFile == null) return;
         //Modify DATE_TIME_ORIGINAL
         if (outputSet == null) outputSet = new TiffOutputSet();

@@ -32,6 +32,7 @@ Simple Android EXIF Editor
 
 At the moment it allows to 
 - change the modification date
+- edit the coordinates
 - delete all EXIF data
 
 ## License
