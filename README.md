@@ -35,7 +35,7 @@ At the moment it allows to
 - edit the coordinates
 - delete all EXIF data
 
-[<img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png" width="120">](https://apt.izzysoft.de/packages/org.woheller69.exifedit)
+[<img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png" height="75">](https://apt.izzysoft.de/packages/org.woheller69.exifedit)
 
 ## License
 
