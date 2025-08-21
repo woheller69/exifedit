@@ -93,8 +93,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void modifyExifData() {
-        if (tempFile == null || outputSet == null) return;
+        if (tempFile == null) return;
         //Modify DATE_TIME_ORIGINAL
+        if (outputSet == null) outputSet = new TiffOutputSet();
         final TiffOutputDirectory exifDirectory;
         try {
             exifDirectory = outputSet.getOrCreateExifDirectory();
@@ -224,6 +225,8 @@ public class MainActivity extends AppCompatActivity {
         filePickerResultLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
+                    tvResult.setText("");
+                    outputSet = null;
                     if (result.getResultCode() == Activity.RESULT_OK) {
                         Intent data = result.getData();
                         if (data != null) {
@@ -235,7 +238,6 @@ public class MainActivity extends AppCompatActivity {
                                 originalTime = documentFile.lastModified();
                                 originalName = documentFile.getName();
                                 displayExifData();
-
                             }
                         }
                     }
@@ -244,7 +246,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void displayExifData() {
         if (tempFile != null) {
-
             TiffImageMetadata metadata;
             try {
                 metadata = getExifMetadata(tempFile);
@@ -261,6 +262,8 @@ public class MainActivity extends AppCompatActivity {
                     }
                     tvResult.setText(text);
                     outputSet = metadata.getOutputSet();
+                } else {
+                    Toast.makeText(this,"No Metadata",Toast.LENGTH_SHORT).show();
                 }
 
             } catch (IOException e) {
@@ -303,6 +306,7 @@ public class MainActivity extends AppCompatActivity {
     private void checkPermission() {
         String manifestPermission;
         manifestPermission = Manifest.permission.READ_MEDIA_IMAGES;
+        //ACCESS_MEDIA_LOCATION permission is not needed when using Storage Access Framework or Photo Picker
         int permission = ContextCompat.checkSelfPermission(this, manifestPermission);
         if (permission != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{manifestPermission}, 0);
@@ -324,6 +328,7 @@ public class MainActivity extends AppCompatActivity {
     private void openFilePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.setType("image/jpeg");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
         filePickerResultLauncher.launch(intent);
     }
 
