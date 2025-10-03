@@ -153,7 +153,7 @@ public class MainActivity extends AppCompatActivity {
             inputHint = parseExifData(0x9003);
             final EditText input = new EditText(this);
             input.setText(inputHint);
-            input.setHint("YYYY:MM:SS HH:MM:SS");
+            input.setHint("YYYY:MM:DD HH:MM:SS");
             builder.setView(input);
 
             // Add the buttons
