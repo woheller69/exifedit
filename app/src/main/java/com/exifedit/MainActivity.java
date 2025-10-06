@@ -35,6 +35,7 @@ import org.apache.commons.imaging.formats.tiff.TiffImageMetadata;
 import org.apache.commons.imaging.formats.tiff.constants.ExifTagConstants;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputDirectory;
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet;
+import org.woheller69.freeDroidWarn.FreeDroidWarn;
 
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
@@ -93,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
         exifDelete.setOnClickListener(view -> deleteExifData());
         exifDate.setOnClickListener(view -> modifyExifDate());
         exifLocation.setOnClickListener(view -> modifyExifLocation());
-
+        FreeDroidWarn.showWarningOnUpgrade(this, BuildConfig.VERSION_CODE);
     }
 
 
