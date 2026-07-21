@@ -62,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
     private FloatingActionButton exifDelete;
     private FloatingActionButton exifDate;
     private FloatingActionButton exifLocation;
+    private FloatingActionButton editUserComment;
     private File outputFile;
     private long originalTime;
     private String originalName;
@@ -73,11 +74,12 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         ThemeUtils.setStatusBarAppearance(this);
         tvResult = findViewById(R.id.tvResult);
-        filePicker = findViewById(R.id.filePicker);
-        fileSave = findViewById(R.id.fileSave);
-        exifDelete = findViewById(R.id.fileDelete);
-        exifDate = findViewById(R.id.fileModDate);
-        exifLocation = findViewById(R.id.fileModLocation);
+        filePicker = findViewById(R.id.btnOpen);
+        fileSave = findViewById(R.id.btnSave);
+        exifDelete = findViewById(R.id.btnDelete);
+        exifDate = findViewById(R.id.btnModDate);
+        exifLocation = findViewById(R.id.btnModLocation);
+        editUserComment = findViewById(R.id.btnEditUserComment);
 
         checkPermission();
         registerFilePickerResultLauncher();
@@ -94,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
         exifDelete.setOnClickListener(view -> deleteExifData());
         exifDate.setOnClickListener(view -> modifyExifDate());
         exifLocation.setOnClickListener(view -> modifyExifLocation());
+        editUserComment.setOnClickListener(view -> editUserComment());
         FreeDroidWarn.showWarningOnUpgrade(this, BuildConfig.VERSION_CODE);
     }
 
@@ -192,6 +195,82 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this,"Error reading Exif data",Toast.LENGTH_SHORT).show();
         }
     }
+
+    private void editUserComment() {
+        if (tempFile == null) return;
+
+        // Ensure outputSet is initialized (e.g., from existing EXIF)
+        if (outputSet == null) {
+            try {
+                TiffImageMetadata metadata = getExifMetadata(tempFile);
+                outputSet = metadata != null ? metadata.getOutputSet() : new TiffOutputSet();
+            } catch (Exception e) {
+                Toast.makeText(this, "Error reading EXIF: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Edit User Comment");
+
+        // Create input field
+        final EditText input = new EditText(this);
+        input.setHint("Enter user comment (max 254 chars)");
+        input.setMaxLines(3);
+        input.setHorizontallyScrolling(false);
+        input.setLines(2);
+
+        // Pre-fill existing comment if available
+        String currentComment = parseExifData(ExifTagConstants.EXIF_TAG_USER_COMMENT.tag);
+        if (!currentComment.isEmpty() && !currentComment.equals("null")) {
+            input.setText(currentComment);
+            input.setSelection(currentComment.length()); // move cursor to end
+        }
+
+        builder.setView(input);
+
+        builder.setPositiveButton("OK", (dialog, which) -> {
+            String comment = input.getText().toString().trim();
+
+            try {
+                // Ensure EXIF directory exists
+                TiffOutputDirectory exifDirectory = outputSet.getOrCreateExifDirectory();
+
+                // Remove old UserComment (if any)
+                exifDirectory.removeField(ExifTagConstants.EXIF_TAG_USER_COMMENT);
+
+                // Add new UserComment (as UTF-8 string → Imaging will encode as ASCII/ISO-8859-1 + null-terminator)
+                // Important: UserComment tag requires null-terminated ASCII string
+                exifDirectory.add(ExifTagConstants.EXIF_TAG_USER_COMMENT, comment);
+
+                // Update temp file
+                updateTempFile();
+                displayExifData(); // refresh display to show new comment
+                dialog.dismiss();
+            } catch (Exception e) {
+                Log.e("ExifEdit", "Failed to update UserComment", e);
+                Toast.makeText(this, "Failed to update comment: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+
+        // Show "Clear" button to remove comment entirely
+        builder.setNeutralButton("Clear", (dialog, which) -> {
+            try {
+                TiffOutputDirectory exifDirectory = outputSet.getOrCreateExifDirectory();
+                exifDirectory.removeField(ExifTagConstants.EXIF_TAG_USER_COMMENT);
+                updateTempFile();
+                displayExifData();
+                dialog.dismiss();
+            } catch (Exception e) {
+                Toast.makeText(this, "Failed to clear comment", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        builder.show();
+    }
+
 
     private void deleteExifData() {
         if (tempFile == null) return;
