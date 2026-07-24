@@ -7,6 +7,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -335,6 +336,13 @@ public class MainActivity extends AppCompatActivity {
             os = new BufferedOutputStream(new FileOutputStream(outputFile.getAbsolutePath()));
             new ExifRewriter().updateExifMetadataLossy(tempFile, os, outputSet);  //Lossless makes exif grow and my crash app
             outputFile.setLastModified(originalTime);
+            // Notify the Android Media Scanner to index the file immediately
+            MediaScannerConnection.scanFile(
+                    this,
+                    new String[]{outputFile.getAbsolutePath()},
+                    new String[]{"image/jpeg"},
+                    null // Callback is optional; null is fine if you don't need to track scan completion
+            );
             Toast.makeText(this,"->" + outputFile.getAbsolutePath(),Toast.LENGTH_SHORT).show();
         } catch (IOException e) {
             Toast.makeText(this,"File in Pictures/ExifEdit exists. Delete it first!",Toast.LENGTH_SHORT).show();
