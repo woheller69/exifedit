@@ -99,8 +99,33 @@ public class MainActivity extends AppCompatActivity {
         exifLocation.setOnClickListener(view -> modifyExifLocation());
         editUserComment.setOnClickListener(view -> editUserComment());
         FreeDroidWarn.showWarningOnUpgrade(this, BuildConfig.VERSION_CODE);
+        // ─── handle intent on first launch (or if activity wasn't running yet) ───
+        handleIntent(getIntent());
+    }
+    /** Called when the activity is already running and receives a new share intent. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleIntent(intent);
     }
 
+    /** Extracts an image Uri from any incoming intent, loads it, and shows EXIF data. */
+    private void handleIntent(Intent intent) {
+        if (intent == null) return;
+
+        if (Intent.ACTION_SEND.equals(intent.getAction())) {
+            Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (uri != null) {
+                createTempFileFromUri(uri);
+                //Hack to get original file date and name
+                DocumentFile documentFile = DocumentFile.fromSingleUri(mContext, uri);
+                originalTime = documentFile.lastModified();
+                originalName = documentFile.getName();
+                displayExifData();
+            }
+        }
+        // Fall through: no actionable intent data found.
+    }
 
     private void modifyExifLocation() {
         if (tempFile == null) return;
